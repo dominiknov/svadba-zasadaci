@@ -2,14 +2,15 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import json
+import os
 
 # 1. Nastavenie stránky a dát
 st.set_page_config(layout="wide", page_title="Svadobný Plánovač")
-st.title("👑 Dynamický Zasadací Poriadok (Pôvodné Rozloženie 1-6)")
+st.title("👑 Dynamický Svadobný Plánovač s Ukladaním Verzií")
 
 @st.cache_data
 def load_guests():
-    # Zoznam 57 ľudí (55 hostí + Dominik a Kika)
     return {
         # MLADOMANŽELIA (Zlatá)
         "Dominik (Ženích)": "Mladomanzelia", "Kika (Nevesta)": "Mladomanzelia",
@@ -41,18 +42,72 @@ def load_guests():
 guest_dict = load_guests()
 all_guests = sorted(list(guest_dict.keys()))
 
-# Inicializácia sedadiel v session state
-if 'seating' not in st.session_state:
-    st.session_state.seating = {}
-
-# Konfigurácia stolov (Vaše pôvodné poradie, len s opravenou 6-tkou)
 tables_config = {
     "Hlavný Stôl": 6, 
     "Stôl 3": 10, "Stôl 2": 10, "Stôl 1": 10, 
     "Stôl 6": 10, "Stôl 5": 10, "Stôl 4": 10
 }
 
-# Bočný panel s neusadenými
+# --- SYSTÉM UKLADANIA DO SÚBORU ---
+DB_FILE = "svadba_verzie.json"
+
+def naciataj_vsetky_verzie():
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+def uloz_verziu(nazov, data):
+    vsetky = naciataj_vsetky_verzie()
+    vsetky[nazov] = data
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(vsetky, f, ensure_ascii=False, indent=4)
+
+# Definícia základného fixného stavu (Hlavný stôl)
+def get_default_seating():
+    default = {}
+    # Fixné nahodenie hlavného stola
+    default["Hlavný Stôl_Miesto_1"] = "Janko (Dominik)"
+    default["Hlavný Stôl_Miesto_2"] = "Mamka (Dominik)"
+    default["Hlavný Stôl_Miesto_3"] = "Dominik (Ženích)"
+    default["Hlavný Stôl_Miesto_4"] = "Kika (Nevesta)"
+    default["Hlavný Stôl_Miesto_5"] = "Mamka (Kika)"
+    default["Hlavný Stôl_Miesto_6"] = "Palo (Kika)"
+    return default
+
+# Inicializácia sedadiel v session state
+if 'seating' not in st.session_state:
+    st.session_state.seating = get_default_seating()
+
+# --- SIDEBAR: LOGIKA UKLADANIA ---
+st.sidebar.header("💾 Správa Variácií")
+verzie = naciataj_vsetky_verzie()
+
+# Uloženie verzie
+novy_nazov = st.sidebar.text_input("Názov novej variácie (napr. Verzia A):")
+if st.sidebar.button("💾 Uložiť aktuálny stav"):
+    if novy_nazov:
+        uloz_verziu(novy_nazov, st.session_state.seating)
+        st.sidebar.success(f"Uložené ako: {novy_nazov}")
+        st.rerun()
+    else:
+        st.sidebar.error("Zadaj názov verzie!")
+
+st.sidebar.markdown("---")
+
+# Načítanie verzie
+if verzie:
+    vybrana_verzia = st.sidebar.selectbox("Vyber uloženú variáciu:", list(verzie.keys()))
+    if st.sidebar.button("📂 Načítať túto variáciu"):
+        st.session_state.seating = verzie[vybrana_verzia]
+        st.sidebar.success(f"Načítaná verzia: {vybrana_verzia}")
+        st.rerun()
+else:
+    st.sidebar.info("Zatiaľ nemáš žiadne uložené variácie.")
+
+st.sidebar.markdown("---")
+
+# Zoznam neusadených hostí
 st.sidebar.header("👥 Kto ešte nesedí?")
 used_guests = [val for val in st.session_state.seating.values() if val != "-- Voľné --"]
 unassigned_guests = ["-- Voľné --"] + [g for g in all_guests if g not in used_guests]
@@ -63,18 +118,21 @@ for ug in unassigned_guests:
         icon = "👑" if skupina == "Mladomanzelia" else "💙" if skupina == "Moja strana" else "💗" if skupina == "Kika strana" else "💚"
         st.sidebar.write(f"{icon} {ug}")
 
-# Výberové menu pre stoly
+# --- OVLÁDACÍ PANEL STOLOV ---
 st.subheader("🪑 Priraďovanie hostí k stolom")
 
-st.markdown("### 👑 Hlavná zóna")
+st.markdown("### 👑 Hlavná zóna (Fixne nastavené)")
 h_cols = st.columns(6)
 for seat in range(1, 7):
     with h_cols[seat - 1]:
         key = f"Hlavný Stôl_Miesto_{seat}"
         current_val = st.session_state.seating.get(key, "-- Voľné --")
+        
+        # Ošetrenie ponuky možností pre selectbox
         options = [current_val] + [g for g in unassigned_guests if g != current_val] if current_val != "-- Voľné --" else unassigned_guests
         options = list(set(options))
         index = options.index(current_val) if current_val in options else 0
+        
         selected = st.selectbox(f"Hlavný M.{seat}", options, index=index, key=key)
         st.session_state.seating[key] = selected
 
@@ -93,10 +151,11 @@ for idx, t_name in enumerate(round_tables):
             options = [current_val] + [g for g in unassigned_guests if g != current_val] if current_val != "-- Voľné --" else unassigned_guests
             options = list(set(options))
             index = options.index(current_val) if current_val in options else 0
+            
             selected = st.selectbox(f"{t_name} M.{seat}", options, index=index, key=key)
             st.session_state.seating[key] = selected
 
-# 🗺️ VYKRESLENIE MAPY SÁLY
+# --- ŽIVÁ VIZUÁLNA MAPA SÁLY ---
 st.markdown("---")
 st.subheader("🗺️ Živá Vizuálna Mapa Sály")
 
@@ -113,7 +172,7 @@ def get_color(name):
     if skupina == "Kika strana": return '#f4cccc'
     return '#d9ead3'
 
-# Hlavný stôl dole
+# Hlavný stôl
 ax.add_patch(plt.Rectangle((5, 0.4), 10, 1.0, color='#e0e0e0', ec='#666666', lw=2))
 ax.text(10, 0.9, "👑 HLAVNÝ STÔL", ha='center', fontweight='bold', fontsize=11)
 
@@ -123,11 +182,9 @@ for s_idx in range(6):
     ax.text(px, 0.6, p_name, fontsize=8, ha='center', va='center',
             bbox=dict(boxstyle='square,pad=0.2', facecolor=get_color(p_name), edgecolor='#999999'))
 
-# 6 Okrúhlych stolov rozložených presne podľa fotky (3,2,1 vpredu a 6,5,4 vzadu)
+# 6 Okrúhlych stolov rozložených symetricky (3,2,1 vpredu a 6,5,4 vzadu)
 coords = {
-    # Predný rad (Bližšie k hlavnému stolu)
     "Stôl 3": (4.5, 4.2), "Stôl 2": (10.0, 4.2), "Stôl 1": (15.5, 4.2),
-    # Zadný rad (Bližšie k tancu)
     "Stôl 6": (4.5, 7.8), "Stôl 5": (10.0, 7.8), "Stôl 4": (15.5, 7.8)
 }
 
