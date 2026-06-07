@@ -5,12 +5,15 @@ import numpy as np
 
 # 1. Nastavenie stránky a dát
 st.set_page_config(layout="wide", page_title="Svadobný Plánovač")
-st.title("👑 Dynamický Zasadací Poriadok (Farebné Rozlíšenie)")
+st.title("👑 Dynamický Zasadací Poriadok (Symetrických 6 stolov)")
 
 @st.cache_data
 def load_guests():
-    # Stopercentne prečistený a rozdelený zoznam hostí podľa tvojho Excelu
+    # Zoznam 57 ľudí (55 hostí + Dominik a Kika)
     return {
+        # MLADOMANŽELIA (Zlatá)
+        "Dominik (Ženích)": "Mladomanzelia", "Kika (Nevesta)": "Mladomanzelia",
+
         # MOJA STRANA (Modrá)
         "Mamka (Dominik)": "Moja strana", "Janko (Dominik)": "Moja strana", "Tomas (Dominik)": "Moja strana", 
         "Eva (Dominik)": "Moja strana", "Babulka (Dominik)": "Moja strana", "Pato (Dominik)": "Moja strana", 
@@ -26,16 +29,13 @@ def load_guests():
         "Sara (Kika)": "Kika strana", "Kekemama (Kika)": "Kika strana", "Gretka doprovod (Kika)": "Kika strana", 
         "Viki Inga (Kika)": "Kika strana", "Paľo ocko (Kika)": "Kika strana", "Paľo mamka (Kika)": "Kika strana",
         
-        # KAMOŠI (Zelená) - Precízne rozdelení z Excelu
+        # KAMOŠI (Zelená)
         "Ila": "Kamosi", "Marek": "Kamosi", "Kaja": "Kamosi", "Oli": "Kamosi", "Nika": "Kamosi", 
         "Jozocko": "Kamosi", "Sasocko": "Kamosi", "Dusan": "Kamosi", "Peta": "Kamosi", "Ada": "Kamosi", 
         "Sofia": "Kamosi", "Tomas Sofi": "Kamosi", "Beki": "Kamosi", "Tomas Beki": "Kamosi", 
         "Dominik S.": "Kamosi", "Lucka": "Kamosi", "Viki B.": "Kamosi", "Viki B. BF": "Kamosi", 
         "Rasto": "Kamosi", "Vlado": "Kamosi", "Marko": "Kamosi", "Ivana": "Kamosi", "Danko Kocak": "Kamosi", 
-        "Danova Naty": "Kamosi", "Biba": "Kamosi", "Jaro": "Kamosi",
-        
-        # OSTATNÍ (Žltá)
-        "Mikias (DJ)": "Ostatni", "Marista (fotografka)": "Ostatni"
+        "Danova Naty": "Kamosi", "Biba": "Kamosi", "Jaro": "Kamosi"
     }
 
 guest_dict = load_guests()
@@ -45,9 +45,11 @@ all_guests = sorted(list(guest_dict.keys()))
 if 'seating' not in st.session_state:
     st.session_state.seating = {}
 
+# Konfigurácia stolov (Už len 6 okrúhlych stolov)
 tables_config = {
-    "Hlavný Stôl": 6, "Stôl 1": 10, "Stôl 2": 10, "Stôl 3": 10, 
-    "Stôl 4": 10, "Stôl 5": 10, "Stôl 6": 10, "Stôl 7": 10
+    "Hlavný Stôl": 6, 
+    "Stôl 3": 10, "Stôl 2": 10, "Stôl 1": 10, 
+    "Stôl 7": 10, "Stôl 5": 10, "Stôl 4": 10
 }
 
 # Bočný panel s neusadenými
@@ -58,26 +60,46 @@ unassigned_guests = ["-- Voľné --"] + [g for g in all_guests if g not in used_
 for ug in unassigned_guests:
     if ug != "-- Voľné --":
         skupina = guest_dict[ug]
-        icon = "💙" if skupina == "Moja strana" else "💗" if skupina == "Kika strana" else "💚" if skupina == "Kamosi" else "💛"
+        icon = "👑" if skupina == "Mladomanzelia" else "💙" if skupina == "Moja strana" else "💗" if skupina == "Kika strana" else "💚"
         st.sidebar.write(f"{icon} {ug}")
 
-# Výberové menu pre stoly
+# Výberové menu pre stoly (Zobrazenie v dvoch radoch)
 st.subheader("🪑 Priraďovanie hostí k stolom")
-cols = st.columns(4)
-for idx, (table_name, max_seats) in enumerate(tables_config.items()):
-    with cols[idx % 4]:
-        st.markdown(f"### {table_name}")
-        for seat in range(1, max_seats + 1):
-            key = f"{table_name}_Miesto_{seat}"
+
+# 1. Riadok výberu: Hlavný stôl samostatne hore
+st.markdown("### 👑 Hlavná zóna")
+h_cols = st.columns(6)
+for seat in range(1, 7):
+    with h_cols[seat - 1]:
+        key = f"Hlavný Stôl_Miesto_{seat}"
+        current_val = st.session_state.seating.get(key, "-- Voľné --")
+        options = [current_val] + [g for g in unassigned_guests if g != current_val] if current_val != "-- Voľné --" else unassigned_guests
+        options = list(set(options))
+        index = options.index(current_val) if current_val in options else 0
+        selected = st.selectbox(f"Hlavný M.{seat}", options, index=index, key=key)
+        st.session_state.seating[key] = selected
+
+st.markdown("---")
+
+# 2. Riadok výberu: Okrúhle stoly v matici
+st.markdown("### 🧮 Okrúhle stoly")
+cols = st.columns(3)
+round_tables = ["Stôl 3", "Stôl 2", "Stôl 1", "Stôl 7", "Stôl 5", "Stôl 4"]
+
+for idx, t_name in enumerate(round_tables):
+    with cols[idx % 3]:
+        st.markdown(f"#### {t_name}")
+        for seat in range(1, 11):
+            key = f"{t_name}_Miesto_{seat}"
             current_val = st.session_state.seating.get(key, "-- Voľné --")
             options = [current_val] + [g for g in unassigned_guests if g != current_val] if current_val != "-- Voľné --" else unassigned_guests
             options = list(set(options))
             index = options.index(current_val) if current_val in options else 0
-            
-            selected = st.selectbox(f"Miesto {seat}", options, index=index, key=key)
+            selected = st.selectbox(f"{t_name} M.{seat}", options, index=index, key=key)
             st.session_state.seating[key] = selected
 
 # 🗺️ VYKRESLENIE MAPY SÁLY
+st.markdown("---")
 st.subheader("🗺️ Živá Vizuálna Mapa Sály")
 
 fig, ax = plt.subplots(figsize=(15, 8))
@@ -85,14 +107,13 @@ ax.set_xlim(0, 20)
 ax.set_ylim(0, 10)
 ax.axis('off')
 
-# Pomocná funkcia pre farby
 def get_color(name):
     if name == "-- Voľné --": return '#ffffff'
     skupina = guest_dict.get(name, "")
-    if skupina == "Moja strana": return '#c9daf8' # Modrá
-    if skupina == "Kika strana": return '#f4cccc' # Ružová
-    if skupina == "Kamosi": return '#d9ead3'      # Zelená
-    return '#fff2cc'                              # Žltá (Ostatní)
+    if skupina == "Mladomanzelia": return '#ffe599'
+    if skupina == "Moja strana": return '#c9daf8'
+    if skupina == "Kika strana": return '#f4cccc'
+    return '#d9ead3'
 
 # Hlavný stôl dole
 ax.add_patch(plt.Rectangle((5, 0.4), 10, 1.0, color='#e0e0e0', ec='#666666', lw=2))
@@ -104,20 +125,22 @@ for s_idx in range(6):
     ax.text(px, 0.6, p_name, fontsize=8, ha='center', va='center',
             bbox=dict(boxstyle='square,pad=0.2', facecolor=get_color(p_name), edgecolor='#999999'))
 
-# Okrúhle stoly (Usporiadané presne podľa rozloženia sály)
+# 6 Okrúhlych stolov rozložených symetricky 3 a 3
 coords = {
-    "Stôl 3": (4, 4.2), "Stôl 2": (10, 4.2), "Stôl 1": (16, 4.2),
-    "Stôl 7": (2.5, 7.8), "Stôl 6": (7.5, 7.8), "Stôl 5": (12.5, 7.8), "Stôl 4": (17.5, 7.8)
+    # Predný rad (Bližšie k vám)
+    "Stôl 3": (4.5, 4.2), "Stôl 2": (10.0, 4.2), "Stôl 1": (15.5, 4.2),
+    # Zadný rad (Bližšie k tancu / vstupu)
+    "Stôl 7": (4.5, 7.8), "Stôl 5": (10.0, 7.8), "Stôl 4": (15.5, 7.8)
 }
 
 for t_name, (x, y) in coords.items():
-    ax.add_patch(plt.Circle((x, y), 1.0, color='#f7f7f7', ec='#aaaaaa', lw=2))
+    ax.add_patch(plt.Circle((x, y), 1.1, color='#f7f7f7', ec='#aaaaaa', lw=2))
     ax.text(x, y, t_name, ha='center', va='center', fontweight='bold', fontsize=10)
     
     angles = np.linspace(0, 2*np.pi, 10, endpoint=False) + np.pi/2
     for s_idx, angle in enumerate(angles):
-        sx = x + 1.45 * np.cos(angle)
-        sy = y + 1.35 * np.sin(angle)
+        sx = x + 1.55 * np.cos(angle)
+        sy = y + 1.45 * np.sin(angle)
         
         person = st.session_state.seating.get(f"{t_name}_Miesto_{s_idx+1}", "-- Voľné --")
         if person != "-- Voľné --":
