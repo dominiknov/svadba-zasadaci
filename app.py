@@ -5,7 +5,7 @@ import numpy as np
 
 # 1. Nastavenie stránky a dát
 st.set_page_config(layout="wide", page_title="Svadobný Plánovač")
-st.title("👑 Dynamický Zasadací Poriadok (Stoly 1-6)")
+st.title("👑 Dynamický Zasadací Poriadok (Pôvodné Rozloženie 1-6)")
 
 @st.cache_data
 def load_guests():
@@ -45,11 +45,11 @@ all_guests = sorted(list(guest_dict.keys()))
 if 'seating' not in st.session_state:
     st.session_state.seating = {}
 
-# Konfigurácia stolov (Pekne za sebou 1 až 6)
+# Konfigurácia stolov (Vaše pôvodné poradie, len s opravenou 6-tkou)
 tables_config = {
     "Hlavný Stôl": 6, 
-    "Stôl 1": 10, "Stôl 2": 10, "Stôl 3": 10, 
-    "Stôl 4": 10, "Stôl 5": 10, "Stôl 6": 10
+    "Stôl 3": 10, "Stôl 2": 10, "Stôl 1": 10, 
+    "Stôl 6": 10, "Stôl 5": 10, "Stôl 4": 10
 }
 
 # Bočný panel s neusadenými
@@ -66,7 +66,6 @@ for ug in unassigned_guests:
 # Výberové menu pre stoly
 st.subheader("🪑 Priraďovanie hostí k stolom")
 
-# 1. Riadok: Hlavný stôl
 st.markdown("### 👑 Hlavná zóna")
 h_cols = st.columns(6)
 for seat in range(1, 7):
@@ -81,10 +80,9 @@ for seat in range(1, 7):
 
 st.markdown("---")
 
-# 2. Riadok: Okrúhle stoly (1-3 predný rad, 4-6 zadný rad)
 st.markdown("### 🧮 Okrúhle stoly")
 cols = st.columns(3)
-round_tables = ["Stôl 1", "Stôl 2", "Stôl 3", "Stôl 4", "Stôl 5", "Stôl 6"]
+round_tables = ["Stôl 3", "Stôl 2", "Stôl 1", "Stôl 6", "Stôl 5", "Stôl 4"]
 
 for idx, t_name in enumerate(round_tables):
     with cols[idx % 3]:
@@ -125,12 +123,12 @@ for s_idx in range(6):
     ax.text(px, 0.6, p_name, fontsize=8, ha='center', va='center',
             bbox=dict(boxstyle='square,pad=0.2', facecolor=get_color(p_name), edgecolor='#999999'))
 
-# 6 Okrúhlych stolov rozložených symetricky (1,2,3 vpredu a 4,5,6 vzadu)
+# 6 Okrúhlych stolov rozložených presne podľa fotky (3,2,1 vpredu a 6,5,4 vzadu)
 coords = {
     # Predný rad (Bližšie k hlavnému stolu)
-    "Stôl 1": (4.5, 4.2), "Stôl 2": (10.0, 4.2), "Stôl 3": (15.5, 4.2),
+    "Stôl 3": (4.5, 4.2), "Stôl 2": (10.0, 4.2), "Stôl 1": (15.5, 4.2),
     # Zadný rad (Bližšie k tancu)
-    "Stôl 4": (4.5, 7.8), "Stôl 5": (10.0, 7.8), "Stôl 6": (15.5, 7.8)
+    "Stôl 6": (4.5, 7.8), "Stôl 5": (10.0, 7.8), "Stôl 4": (15.5, 7.8)
 }
 
 for t_name, (x, y) in coords.items():
