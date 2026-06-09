@@ -66,7 +66,6 @@ def uloz_verziu(nazov, data):
 # Definícia základného fixného stavu (Hlavný stôl)
 def get_default_seating():
     default = {}
-    # Fixné nahodenie hlavného stola
     default["Hlavný Stôl_Miesto_1"] = "Janko (Dominik)"
     default["Hlavný Stôl_Miesto_2"] = "Mamka (Dominik)"
     default["Hlavný Stôl_Miesto_3"] = "Dominik (Ženích)"
@@ -99,7 +98,13 @@ st.sidebar.markdown("---")
 if verzie:
     vybrana_verzia = st.sidebar.selectbox("Vyber uloženú variáciu:", list(verzie.keys()))
     if st.sidebar.button("📂 Načítať túto variáciu"):
-        st.session_state.seating = verzie[vybrana_verzia]
+        # OPRAVA: Premažeme staré widget kľúče, aby selectboxy neskočili na staré hodnoty
+        for k in list(st.session_state.keys()):
+            if k.startswith("w_"):
+                del st.session_state[k]
+        
+        # Priradíme načítané usadenie
+        st.session_state.seating = verzie[vybrana_verzia].copy()
         st.sidebar.success(f"Načítaná verzia: {vybrana_verzia}")
         st.rerun()
 else:
@@ -126,15 +131,17 @@ h_cols = st.columns(6)
 for seat in range(1, 7):
     with h_cols[seat - 1]:
         key = f"Hlavný Stôl_Miesto_{seat}"
+        widget_key = f"w_{key}" # Unikátny kľúč pre widget
         current_val = st.session_state.seating.get(key, "-- Voľné --")
         
-        # Ošetrenie ponuky možností pre selectbox
         options = [current_val] + [g for g in unassigned_guests if g != current_val] if current_val != "-- Voľné --" else unassigned_guests
-        options = list(set(options))
+        options = list(dict.fromkeys(options)) # Zachovanie poradia a odstránenie duplicít
         index = options.index(current_val) if current_val in options else 0
         
-        selected = st.selectbox(f"Hlavný M.{seat}", options, index=index, key=key)
-        st.session_state.seating[key] = selected
+        selected = st.selectbox(f"Hlavný M.{seat}", options, index=index, key=widget_key)
+        if selected != current_val:
+            st.session_state.seating[key] = selected
+            st.rerun()
 
 st.markdown("---")
 
@@ -147,13 +154,17 @@ for idx, t_name in enumerate(round_tables):
         st.markdown(f"#### {t_name}")
         for seat in range(1, 11):
             key = f"{t_name}_Miesto_{seat}"
+            widget_key = f"w_{key}" # Unikátny kľúč pre widget
             current_val = st.session_state.seating.get(key, "-- Voľné --")
+            
             options = [current_val] + [g for g in unassigned_guests if g != current_val] if current_val != "-- Voľné --" else unassigned_guests
-            options = list(set(options))
+            options = list(dict.fromkeys(options))
             index = options.index(current_val) if current_val in options else 0
             
-            selected = st.selectbox(f"{t_name} M.{seat}", options, index=index, key=key)
-            st.session_state.seating[key] = selected
+            selected = st.selectbox(f"{t_name} M.{seat}", options, index=index, key=widget_key)
+            if selected != current_val:
+                st.session_state.seating[key] = selected
+                st.rerun()
 
 # --- ŽIVÁ VIZUÁLNA MAPA SÁLY ---
 st.markdown("---")
