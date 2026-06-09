@@ -64,7 +64,7 @@ def uloz_verziu(nazov, data):
     with open(DB_VERZIE, "w", encoding="utf-8") as f:
         json.dump(vsetky, f, ensure_ascii=False, indent=4)
 
-# Inicializácia sedenia s novou, nepriestrelnou štruktúrou kľúčov
+# Inicializácia čistého sedenia v pamäti aplikácie
 if 'seating' not in st.session_state:
     st.session_state.seating = {}
 
@@ -87,19 +87,13 @@ with tab1:
     if verzie:
         vybrana_verzia = st.sidebar.selectbox("Vyber uloženú variáciu:", list(verzie.keys()))
         if st.sidebar.button("📂 Načítať variáciu"):
-            # BEZPEČNÉ NAČÍTANIE: Ak kľúč nesedí s novým formátom, odignoruje sa
-            raw_data = verzie[vybrana_verzia]
-            validated_data = {}
-            for k, v in raw_data.items():
-                if k.startswith("v2_") and (v == "-- Voľné --" or v in guest_dict):
-                    validated_data[k] = v
-            st.session_state.seating = validated_data
+            st.session_state.seating = verzie[vybrana_verzia]
             st.rerun()
 
     st.sidebar.markdown("---")
     st.sidebar.header("👥 Kto ešte nesedí?")
     
-    # Prepočet priradených hostí
+    # Prepočet priradených hostí, aby sme ich schovali z ostatných dropdownov
     used_guests = [val for key, val in st.session_state.seating.items() if val != "-- Voľné --"]
     unassigned_guests = ["-- Voľné --"] + [g for g in all_guests if g not in used_guests]
 
@@ -111,18 +105,22 @@ with tab1:
 
     st.subheader("🪑 Priraďovanie hostí k stolom")
     
-    # Úplne izolované, unikátne generovanie selectboxov (kľúče začínajú verziou v2_)
+    # ⚡ SPÄTNÁ VÄZBA: Callback funkcia, ktorá bezpečne zapíše hodnotu bez sekania aplikácie
+    def update_seat(db_key, widget_key):
+        st.session_state.seating[db_key] = st.session_state[widget_key]
+
     def draw_seat(label, table_id, seat_num, layout_ctx):
-        db_key = f"v2_{table_id}_S{seat_num}"
-        widget_key = f"w_v2_{table_id}_S{seat_num}"
+        db_key = f"v3_{table_id}_S{seat_num}"
+        widget_key = f"w_v3_{table_id}_S{seat_num}"
         
         current_val = st.session_state.seating.get(db_key, "-- Voľné --")
         
-        # Ak hosť medzitým vypadol zo zoznamu, uvoľníme miesto
+        # Ak sme meno medzitým zmazali v druhej karte, uvoľníme miesto
         if current_val != "-- Voľné --" and current_val not in guest_dict:
             current_val = "-- Voľné --"
             st.session_state.seating[db_key] = "-- Voľné --"
             
+        # Príprava zoznamu možností pre dropdown
         options = [current_val] if current_val != "-- Voľné --" else []
         options += [g for g in all_guests if g not in used_guests]
         if "-- Voľné --" not in options:
@@ -131,10 +129,15 @@ with tab1:
         
         idx = options.index(current_val) if current_val in options else 0
         
-        selected = layout_ctx.selectbox(f"{label} M.{seat_num}", options, index=idx, key=widget_key)
-        if selected != current_val:
-            st.session_state.seating[db_key] = selected
-            st.rerun()
+        # Vykreslenie selectboxu s naviazaným on_change (nepriestrelné riešenie pre mobily)
+        layout_ctx.selectbox(
+            f"{label} M.{seat_num}", 
+            options, 
+            index=idx, 
+            key=widget_key, 
+            on_change=update_seat, 
+            args=(db_key, widget_key)
+        )
 
     # 1. Hlavný stôl
     st.markdown("### 👑 Hlavná zóna")
@@ -176,7 +179,7 @@ with tab1:
     ax.text(10, 0.9, "👑 HLAVNÝ STÔL", ha='center', fontweight='bold', fontsize=11)
     
     for s_idx in range(6):
-        p_name = st.session_state.seating.get(f"v2_Main_S{s_idx+1}", "-- Voľné --")
+        p_name = st.session_state.seating.get(f"v3_Main_S{s_idx+1}", "-- Voľné --")
         ax.text(5.8 + s_idx * 1.6, 0.6, p_name, fontsize=8, ha='center', va='center',
                 bbox=dict(boxstyle='square,pad=0.2', facecolor=get_color(p_name), edgecolor='#999999'))
 
@@ -190,7 +193,7 @@ with tab1:
         ax.text(x, y, t_label, ha='center', va='center', fontweight='bold')
         angles = np.linspace(0, 2*np.pi, 10, endpoint=False) + np.pi/2
         for s_idx, angle in enumerate(angles):
-            person = st.session_state.seating.get(f"v2_{t_id}_S{s_idx+1}", "-- Voľné --")
+            person = st.session_state.seating.get(f"v3_{t_id}_S{s_idx+1}", "-- Voľné --")
             if person != "-- Voľné --":
                 ax.text(x + 1.55 * np.cos(angle), y + 1.45 * np.sin(angle), person, fontsize=7.5, ha='center', va='center',
                         bbox=dict(boxstyle='round,pad=0.2', facecolor=get_color(person), edgecolor='#cccccc'))
