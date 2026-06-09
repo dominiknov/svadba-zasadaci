@@ -63,18 +63,18 @@ def uloz_verziu(nazov, data):
 
 def get_default_seating():
     default = {}
-    default["Hlavny_Stol_Miesto_1"] = "Janko (Dominik)" if "Janko (Dominik)" in guest_dict else "-- Voľné --"
-    default["Hlavny_Stol_Miesto_2"] = "Mamka (Dominik)" if "Mamka (Dominik)" in guest_dict else "-- Voľné --"
-    default["Hlavny_Stol_Miesto_3"] = "Dominik (Ženích)" if "Dominik (Ženích)" in guest_dict else "-- Voľné --"
-    default["Hlavny_Stol_Miesto_4"] = "Kika (Nevesta)" if "Kika (Nevesta)" in guest_dict else "-- Voľné --"
-    default["Hlavny_Stol_Miesto_5"] = "Mamka (Kika)" if "Mamka (Kika)" in guest_dict else "-- Voľné --"
-    default["Hlavny_Stol_Miesto_6"] = "Palo (Kika)" if "Palo (Kika)" in guest_dict else "-- Voľné --"
+    default["Main_Miesto_1"] = "Janko (Dominik)" if "Janko (Dominik)" in guest_dict else "-- Voľné --"
+    default["Main_Miesto_2"] = "Mamka (Dominik)" if "Mamka (Dominik)" in guest_dict else "-- Voľné --"
+    default["Main_Miesto_3"] = "Dominik (Ženích)" if "Dominik (Ženích)" in guest_dict else "-- Voľné --"
+    default["Main_Miesto_4"] = "Kika (Nevesta)" if "Kika (Nevesta)" in guest_dict else "-- Voľné --"
+    default["Main_Miesto_5"] = "Mamka (Kika)" if "Mamka (Kika)" in guest_dict else "-- Voľné --"
+    default["Main_Miesto_6"] = "Palo (Kika)" if "Palo (Kika)" in guest_dict else "-- Voľné --"
     return default
 
 if 'seating' not in st.session_state:
     st.session_state.seating = get_default_seating()
 
-# Čistenie neexistujúcich hostí zo session state
+# Čistenie session state
 for k, v in list(st.session_state.seating.items()):
     if v != "-- Voľné --" and v not in guest_dict:
         st.session_state.seating[k] = "-- Voľné --"
@@ -101,25 +101,41 @@ with tab1:
             raw_seating = verzie[vybrana_verzia]
             cleaned_seating = {}
             
-            # --- INTELLIGENTNÝ PREVODNÍK STARÝCH KĽÚČOV ---
+            # --- AGRESÍVNY VYČISŤOVAČ / FALLBACK ---
             for k, v in raw_seating.items():
-                new_key = k
-                # Prevod "Hlavný Stôl" -> "Hlavny_Stol"
-                if "Hlavný Stôl" in k:
-                    new_key = k.replace("Hlavný Stôl", "Hlavny_Stol")
-                # Prevod "Stôl X" -> "Stol_X"
-                elif "Stôl " in k:
-                    new_key = k.replace("Stôl ", "Stol_")
+                # Extrahujeme len číslo miesta z konca textu ("...Miesto_5" -> "5")
+                seat_num = k.split("_")[-1]
                 
-                cleaned_seating[new_key] = v
-                
+                # Priradíme stôl podľa akéhokoľvek náznaku v starom kľúči
+                if "Hlavn" in k or "Main" in k:
+                    cleaned_seating[f"Main_Miesto_{seat_num}"] = v
+                elif "3" in k:
+                    cleaned_seating[f"T3_Miesto_{seat_num}"] = v
+                elif "2" in k:
+                    cleaned_seating[f"T2_Miesto_{seat_num}"] = v
+                elif "1" in k:
+                    cleaned_seating[f"T1_Miesto_{seat_num}"] = v
+                elif "6" in k:
+                    cleaned_seating[f"T6_Miesto_{seat_num}"] = v
+                elif "5" in k:
+                    cleaned_seating[f"T5_Miesto_{seat_num}"] = v
+                elif "4" in k:
+                    cleaned_seating[f"T4_Miesto_{seat_num}"] = v
+            
             st.session_state.seating = cleaned_seating
             st.rerun()
 
     st.sidebar.markdown("---")
     st.sidebar.header("👥 Kto ešte nesedí?")
     
-    used_guests = [val for val in st.session_state.seating.values() if val != "-- Voľné --"]
+    # Prepočet použitých hostí (berieme len tých z aktuálne vyčistenej štruktúry)
+    used_guests = []
+    for t_id in ["Main", "T3", "T2", "T1", "T6", "T5", "T4"]:
+        for s in range(1, 11):
+            val = st.session_state.seating.get(f"{t_id}_Miesto_{s}", "-- Voľné --")
+            if val != "-- Voľné --":
+                used_guests.append(val)
+                
     unassigned_guests = ["-- Voľné --"] + [g for g in all_guests if g not in used_guests]
 
     for ug in unassigned_guests:
@@ -130,11 +146,13 @@ with tab1:
 
     st.subheader("🪑 Priraďovanie hostí k stolom")
     
-    def render_single_seat_selector(t_label, t_id, seat_number, target=None):
-        key = f"wkey_{t_id}_Miesto_{seat_number}"
+    # HLAVNÁ FUNKCIA: Používa ultra-krátke a bezpečné ID (Main, T1, T2...)
+    def render_single_seat_selector(t_label, t_id, seat_number, target):
+        key = f"wkey_{t_id}_M_{seat_number}"
         db_key = f"{t_id}_Miesto_{seat_number}"
         current_val = st.session_state.seating.get(db_key, "-- Voľné --")
         
+        # Príprava zoznamu možností
         valid_options = [current_val] if current_val != "-- Voľné --" else []
         valid_options += [g for g in all_guests if g not in used_guests]
         if "-- Voľné --" not in valid_options:
@@ -147,32 +165,25 @@ with tab1:
         except ValueError:
             idx = 0
             
-        if target is not None:
-            selected = target.selectbox(f"{t_label} M.{seat_number}", valid_options, index=idx, key=key)
-        else:
-            selected = st.selectbox(f"{t_label} M.{seat_number}", valid_options, index=idx, key=key)
+        selected = target.selectbox(f"{t_label} M.{seat_number}", valid_options, index=idx, key=key)
             
         if selected != current_val:
             st.session_state.seating[db_key] = selected
             st.rerun()
 
-    # 1. Hlavný stôl
+    # 1. Hlavný stôl (6 miest)
     st.markdown("### 👑 Hlavná zóna")
     h_cols = st.columns(6)
     for seat in range(1, 7):
-        render_single_seat_selector("Hlavný stôl", "Hlavny_Stol", seat, target=h_cols[seat-1])
+        render_single_seat_selector("Hlavný stôl", "Main", seat, target=h_cols[seat-1])
 
     st.markdown("---")
     st.markdown("### 🧮 Okrúhle stoly")
     cols = st.columns(3)
     
     round_tables = [
-        {"label": "Stôl 3", "id": "Stol_3"},
-        {"label": "Stôl 2", "id": "Stol_2"},
-        {"label": "Stôl 1", "id": "Stol_1"},
-        {"label": "Stôl 6", "id": "Stol_6"},
-        {"label": "Stôl 5", "id": "Stol_5"},
-        {"label": "Stôl 4", "id": "Stol_4"}
+        {"label": "Stôl 3", "id": "T3"}, {"label": "Stôl 2", "id": "T2"}, {"label": "Stôl 1", "id": "T1"},
+        {"label": "Stôl 6", "id": "T6"}, {"label": "Stôl 5", "id": "T5"}, {"label": "Stôl 4", "id": "T4"}
     ]
     
     for idx, t in enumerate(round_tables):
@@ -199,13 +210,13 @@ with tab1:
     ax.text(10, 0.9, "👑 HLAVNÝ STÔL", ha='center', fontweight='bold', fontsize=11)
     
     for s_idx in range(6):
-        p_name = st.session_state.seating.get(f"Hlavny_Stol_Miesto_{s_idx+1}", "-- Voľné --")
+        p_name = st.session_state.seating.get(f"Main_Miesto_{s_idx+1}", "-- Voľné --")
         ax.text(5.8 + s_idx * 1.6, 0.6, p_name, fontsize=8, ha='center', va='center',
                 bbox=dict(boxstyle='square,pad=0.2', facecolor=get_color(p_name), edgecolor='#999999'))
 
     coords = {
-        "Stol_3": (4.5, 4.2, "Stôl 3"), "Stol_2": (10.0, 4.2, "Stôl 2"), "Stol_1": (15.5, 4.2, "Stôl 1"),
-        "Stol_6": (4.5, 7.8, "Stôl 6"), "Stol_5": (10.0, 7.8, "Stôl 5"), "Stol_4": (15.5, 7.8, "Stôl 4")
+        "T3": (4.5, 4.2, "Stôl 3"), "T2": (10.0, 4.2, "Stôl 2"), "T1": (15.5, 4.2, "Stôl 1"),
+        "T6": (4.5, 7.8, "Stôl 6"), "T5": (10.0, 7.8, "Stôl 5"), "T4": (15.5, 7.8, "Stôl 4")
     }
 
     for t_id, (x, y, t_label) in coords.items():
