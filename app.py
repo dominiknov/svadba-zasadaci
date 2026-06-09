@@ -74,7 +74,7 @@ def get_default_seating():
 if 'seating' not in st.session_state:
     st.session_state.seating = get_default_seating()
 
-# Čistenie neexistujúcich hostí zo session state
+# Čistenie zmazaných hostí zo state
 for k, v in list(st.session_state.seating.items()):
     if v != "-- Voľné --" and v not in guest_dict:
         st.session_state.seating[k] = "-- Voľné --"
@@ -115,8 +115,8 @@ with tab1:
 
     st.subheader("🪑 Priraďovanie hostí k stolom")
     
-    # Opravené generovanie kľúčov presne podľa tvojho screenshotu z PC
-    def render_single_seat_selector(t_label, prefix_db, seat_number, target):
+    # Pôvodná jednoduchá logika selectboxov
+    def render_single_seat_selector(prefix_db, seat_number):
         key = f"widget_{prefix_db.replace(' ', '_')}_{seat_number}"
         db_key = f"{prefix_db} M.{seat_number}"
         current_val = st.session_state.seating.get(db_key, "-- Voľné --")
@@ -133,37 +133,25 @@ with tab1:
         except ValueError:
             idx = 0
             
-        selected = target.selectbox(f"{t_label} M.{seat_number}", valid_options, index=idx, key=key)
+        selected = st.selectbox(f"{prefix_db} M.{seat_number}", valid_options, index=idx, key=key)
             
         if selected != current_val:
             st.session_state.seating[db_key] = selected
             st.rerun()
 
-    # 1. Hlavný stôl (Zjednotené na malé "s" -> "Hlavný stôl")
+    # 1. Hlavný stôl (6 miest)
     st.markdown("### 👑 Hlavná zóna")
-    h_cols = st.columns(6)
     for seat in range(1, 7):
-        render_single_seat_selector("Hlavný stôl", "Hlavný stôl", seat, target=h_cols[seat-1])
+        render_single_seat_selector("Hlavný stôl", seat)
 
     st.markdown("---")
     st.markdown("### 🧮 Okrúhle stoly")
-    cols = st.columns(3)
     
-    round_tables = [
-        {"label": "Stôl 3", "prefix": "Stôl 3"},
-        {"label": "Stôl 2", "prefix": "Stôl 2"},
-        {"label": "Stôl 1", "prefix": "Stôl 1"},
-        {"label": "Stôl 6", "prefix": "Stôl 6"},
-        {"label": "Stôl 5", "prefix": "Stôl 5"},
-        {"label": "Stôl 4", "prefix": "Stôl 4"}
-    ]
-    
-    for idx, t in enumerate(round_tables):
-        grid_col = cols[idx % 3]
-        with grid_col:
-            st.markdown(f"#### {t['label']}")
-            for seat in range(1, 11):
-                render_single_seat_selector(t["label"], t["prefix"], seat, target=grid_col)
+    round_tables = ["Stôl 3", "Stôl 2", "Stôl 1", "Stôl 6", "Stôl 5", "Stôl 4"]
+    for t_name in round_tables:
+        st.markdown(f"#### {t_name}")
+        for seat in range(1, 11):
+            render_single_seat_selector(t_name, seat)
 
     # Vizualizácia (Mapa)
     st.markdown("---")
