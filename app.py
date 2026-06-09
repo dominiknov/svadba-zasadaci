@@ -11,7 +11,7 @@ st.title("👑 Profesionálny Svadobný Plánovač")
 
 DB_VERZIE = "svadba_verzie.json"
 
-# --- PEVNÝ PÔVODNÝ ZOZNAM HOSTÍ (BEZ SPRÁVY) ---
+# --- PEVNÝ PÔVODNÝ ZOZNAM HOSTÍ ---
 guest_dict = {
     "Dominik (Ženích)": "Mladomanzelia", "Kika (Nevesta)": "Mladomanzelia",
     "Mamka (Dominik)": "Moja strana", "Janko (Dominik)": "Moja strana", "Tomas (Dominik)": "Moja strana", 
@@ -49,16 +49,24 @@ def uloz_verziu(nazov, data):
 
 def get_default_seating():
     default = {}
-    default["Hlavný stôl M.1"] = "Adrianka (Dominik)" if "Adrianka (Dominik)" in guest_dict else "-- Voľné --"
-    default["Hlavný stôl M.2"] = "Mamka (Dominik)" if "Mamka (Dominik)" in guest_dict else "-- Voľné --"
-    default["Hlavný stôl M.3"] = "Dominik (Ženích)" if "Dominik (Ženích)" in guest_dict else "-- Voľné --"
-    default["Hlavný stôl M.4"] = "Kika (Nevesta)" if "Kika (Nevesta)" in guest_dict else "-- Voľné --"
-    default["Hlavný stôl M.5"] = "Mamka (Kika)" if "Mamka (Kika)" in guest_dict else "-- Voľné --"
-    default["Hlavný stôl M.6"] = "Palo (Kika)" if "Palo (Kika)" in guest_dict else "-- Voľné --"
+    default["Hlavný stôl M.1"] = "Adrianka (Dominik)"
+    default["Hlavný stôl M.2"] = "Mamka (Dominik)"
+    default["Hlavný stôl M.3"] = "Dominik (Ženích)"
+    default["Hlavný stôl M.4"] = "Kika (Nevesta)"
+    default["Hlavný stôl M.5"] = "Mamka (Kika)"
+    default["Hlavný stôl M.6"] = "Palo (Kika)"
     return default
 
 if 'seating' not in st.session_state:
     st.session_state.seating = get_default_seating()
+
+# Vynútenie statického usadenia hlavného stola v pamäti
+st.session_state.seating["Hlavný stôl M.1"] = "Adrianka (Dominik)"
+st.session_state.seating["Hlavný stôl M.2"] = "Mamka (Dominik)"
+st.session_state.seating["Hlavný stôl M.3"] = "Dominik (Ženích)"
+st.session_state.seating["Hlavný stôl M.4"] = "Kika (Nevesta)"
+st.session_state.seating["Hlavný stôl M.5"] = "Mamka (Kika)"
+st.session_state.seating["Hlavný stôl M.6"] = "Palo (Kika)"
 
 # --- SIDEBAR (BOČNÝ PANEL) ---
 st.sidebar.header("💾 Správa Variácií")
@@ -89,8 +97,20 @@ for ug in unassigned_guests:
         icon = "👑" if skupina == "Mladomanzelia" else "💙" if skupina == "Moja strana" else "💗" if skupina == "Kika strana" else "💚"
         st.sidebar.write(f"{icon} {ug}")
 
-# --- HLAVNÁ STRÁNKA A DROPDOWN SELECTORY ---
+# --- HLAVNÁ STRÁNKA ---
 st.subheader("🪑 Priraďovanie hostí k stolom")
+
+# STATICKÉ ZOBRAZENIE HLAVNÉHO STOLA
+st.markdown("### 👑 Hlavná zóna")
+st.write(f"**Miesto 1:** {st.session_state.seating['Hlavný stôl M.1']}")
+st.write(f"**Miesto 2:** {st.session_state.seating['Hlavný stôl M.2']}")
+st.write(f"**Miesto 3:** {st.session_state.seating['Hlavný stôl M.3']}")
+st.write(f"**Miesto 4:** {st.session_state.seating['Hlavný stôl M.4']}")
+st.write(f"**Miesto 5:** {st.session_state.seating['Hlavný stôl M.5']}")
+st.write(f"**Miesto 6:** {st.session_state.seating['Hlavný stôl M.6']}")
+
+st.markdown("---")
+st.markdown("### 🧮 Okrúhle stoly")
 
 def render_single_seat_selector(prefix_db, seat_number):
     key = f"widget_{prefix_db.replace(' ', '_')}_{seat_number}"
@@ -114,13 +134,6 @@ def render_single_seat_selector(prefix_db, seat_number):
     if selected != current_val:
         st.session_state.seating[db_key] = selected
         st.rerun()
-
-st.markdown("### 👑 Hlavná zóna")
-for seat in range(1, 7):
-    render_single_seat_selector("Hlavný stôl", seat)
-
-st.markdown("---")
-st.markdown("### 🧮 Okrúhle stoly")
 
 round_tables = ["Stôl 3", "Stôl 2", "Stôl 1", "Stôl 6", "Stôl 5", "Stôl 4"]
 for t_name in round_tables:
