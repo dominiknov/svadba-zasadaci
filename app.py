@@ -51,11 +51,8 @@ all_guests = sorted(list(guest_dict.keys()))
 # --- SYSTÉM UKLADANIA VERZIÍ ZASADANIA ---
 def naciataj_vsetky_verzie():
     if os.path.exists(DB_VERZIE):
-        try:
-            with open(DB_VERZIE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            return {}
+        with open(DB_VERZIE, "r", encoding="utf-8") as f:
+            return json.load(f)
     return {}
 
 def uloz_verziu(nazov, data):
@@ -64,9 +61,23 @@ def uloz_verziu(nazov, data):
     with open(DB_VERZIE, "w", encoding="utf-8") as f:
         json.dump(vsetky, f, ensure_ascii=False, indent=4)
 
-# Inicializácia čistého sedenia v pamäti aplikácie
+def get_default_seating():
+    default = {}
+    default["Hlavný Stôl M.1"] = "Janko (Dominik)" if "Janko (Dominik)" in guest_dict else "-- Voľné --"
+    default["Hlavný Stôl M.2"] = "Mamka (Dominik)" if "Mamka (Dominik)" in guest_dict else "-- Voľné --"
+    default["Hlavný Stôl M.3"] = "Dominik (Ženích)" if "Dominik (Ženích)" in guest_dict else "-- Voľné --"
+    default["Hlavný Stôl M.4"] = "Kika (Nevesta)" if "Kika (Nevesta)" in guest_dict else "-- Voľné --"
+    default["Hlavný Stôl M.5"] = "Mamka (Kika)" if "Mamka (Kika)" in guest_dict else "-- Voľné --"
+    default["Hlavný Stôl M.6"] = "Palo (Kika)" if "Palo (Kika)" in guest_dict else "-- Voľné --"
+    return default
+
 if 'seating' not in st.session_state:
-    st.session_state.seating = {}
+    st.session_state.seating = get_default_seating()
+
+# Čistenie neexistujúcich hostí zo session state
+for k, v in list(st.session_state.seating.items()):
+    if v != "-- Voľné --" and v not in guest_dict:
+        st.session_state.seating[k] = "-- Voľné --"
 
 tab1, tab2 = st.tabs(["🗺️ Zasadací Poriadok", "👥 Správa Hostí"])
 
@@ -93,8 +104,7 @@ with tab1:
     st.sidebar.markdown("---")
     st.sidebar.header("👥 Kto ešte nesedí?")
     
-    # Prepočet priradených hostí, aby sme ich schovali z ostatných dropdownov
-    used_guests = [val for key, val in st.session_state.seating.items() if val != "-- Voľné --"]
+    used_guests = [val for val in st.session_state.seating.values() if val != "-- Voľné --"]
     unassigned_guests = ["-- Voľné --"] + [g for g in all_guests if g not in used_guests]
 
     for ug in unassigned_guests:
@@ -105,53 +115,47 @@ with tab1:
 
     st.subheader("🪑 Priraďovanie hostí k stolom")
     
-    # ⚡ SPÄTNÁ VÄZBA: Callback funkcia, ktorá bezpečne zapíše hodnotu bez sekania aplikácie
-    def update_seat(db_key, widget_key):
-        st.session_state.seating[db_key] = st.session_state[widget_key]
-
-    def draw_seat(label, table_id, seat_num, layout_ctx):
-        db_key = f"v3_{table_id}_S{seat_num}"
-        widget_key = f"w_v3_{table_id}_S{seat_num}"
-        
+    # Pôvodná funkcia, ktorá berie presné staré názvy stolov s diakritikou
+    def render_single_seat_selector(t_label, prefix_db, seat_number, target):
+        key = f"widget_{prefix_db}_{seat_number}"
+        db_key = f"{prefix_db} M.{seat_number}"
         current_val = st.session_state.seating.get(db_key, "-- Voľné --")
         
-        # Ak sme meno medzitým zmazali v druhej karte, uvoľníme miesto
-        if current_val != "-- Voľné --" and current_val not in guest_dict:
-            current_val = "-- Voľné --"
-            st.session_state.seating[db_key] = "-- Voľné --"
+        valid_options = [current_val] if current_val != "-- Voľné --" else []
+        valid_options += [g for g in all_guests if g not in used_guests]
+        if "-- Voľné --" not in valid_options:
+            valid_options.append("-- Voľné --")
+        
+        valid_options = list(dict.fromkeys(valid_options))
+        
+        try:
+            idx = valid_options.index(current_val)
+        except ValueError:
+            idx = 0
             
-        # Príprava zoznamu možností pre dropdown
-        options = [current_val] if current_val != "-- Voľné --" else []
-        options += [g for g in all_guests if g not in used_guests]
-        if "-- Voľné --" not in options:
-            options.append("-- Voľné --")
-        options = list(dict.fromkeys(options))
-        
-        idx = options.index(current_val) if current_val in options else 0
-        
-        # Vykreslenie selectboxu s naviazaným on_change (nepriestrelné riešenie pre mobily)
-        layout_ctx.selectbox(
-            f"{label} M.{seat_num}", 
-            options, 
-            index=idx, 
-            key=widget_key, 
-            on_change=update_seat, 
-            args=(db_key, widget_key)
-        )
+        selected = target.selectbox(f"{t_label} M.{seat_number}", valid_options, index=idx, key=key)
+            
+        if selected != current_val:
+            st.session_state.seating[db_key] = selected
+            st.rerun()
 
-    # 1. Hlavný stôl
+    # 1. Hlavný stôl (Vykreslenie do 6 stĺpcov vedľa seba)
     st.markdown("### 👑 Hlavná zóna")
     h_cols = st.columns(6)
     for seat in range(1, 7):
-        draw_seat("Hlavný stôl", "Main", seat, h_cols[seat-1])
+        render_single_seat_selector("Hlavný stôl", "Hlavný Stôl", seat, target=h_cols[seat-1])
 
     st.markdown("---")
     st.markdown("### 🧮 Okrúhle stoly")
     cols = st.columns(3)
     
     round_tables = [
-        {"label": "Stôl 3", "id": "T3"}, {"label": "Stôl 2", "id": "T2"}, {"label": "Stôl 1", "id": "T1"},
-        {"label": "Stôl 6", "id": "T6"}, {"label": "Stôl 5", "id": "T5"}, {"label": "Stôl 4", "id": "T4"}
+        {"label": "Stôl 3", "prefix": "Stôl 3"},
+        {"label": "Stôl 2", "prefix": "Stôl 2"},
+        {"label": "Stôl 1", "prefix": "Stôl 1"},
+        {"label": "Stôl 6", "prefix": "Stôl 6"},
+        {"label": "Stôl 5", "prefix": "Stôl 5"},
+        {"label": "Stôl 4", "prefix": "Stôl 4"}
     ]
     
     for idx, t in enumerate(round_tables):
@@ -159,7 +163,7 @@ with tab1:
         with grid_col:
             st.markdown(f"#### {t['label']}")
             for seat in range(1, 11):
-                draw_seat(t["label"], t["id"], seat, grid_col)
+                render_single_seat_selector(t["label"], t["prefix"], seat, target=grid_col)
 
     # Vizualizácia (Mapa)
     st.markdown("---")
@@ -179,27 +183,33 @@ with tab1:
     ax.text(10, 0.9, "👑 HLAVNÝ STÔL", ha='center', fontweight='bold', fontsize=11)
     
     for s_idx in range(6):
-        p_name = st.session_state.seating.get(f"v3_Main_S{s_idx+1}", "-- Voľné --")
+        p_name = st.session_state.seating.get(f"Hlavný Stôl M.{s_idx+1}", "-- Voľné --")
         ax.text(5.8 + s_idx * 1.6, 0.6, p_name, fontsize=8, ha='center', va='center',
                 bbox=dict(boxstyle='square,pad=0.2', facecolor=get_color(p_name), edgecolor='#999999'))
 
-    coords = {
-        "T3": (4.5, 4.2, "Stôl 3"), "T2": (10.0, 4.2, "Stôl 2"), "T1": (15.5, 4.2, "Stôl 1"),
-        "T6": (4.5, 7.8, "Stôl 6"), "T5": (10.0, 7.8, "Stôl 5"), "T4": (15.5, 7.8, "Stôl 4")
-    }
+    coords = [
+        {"prefix": "Stôl 3", "label": "Stôl 3", "x": 4.5, "y": 4.2},
+        {"prefix": "Stôl 2", "label": "Stôl 2", "x": 10.0, "y": 4.2},
+        {"prefix": "Stôl 1", "label": "Stôl 1", "x": 15.5, "y": 4.2},
+        {"prefix": "Stôl 6", "label": "Stôl 6", "x": 4.5, "y": 7.8},
+        {"prefix": "Stôl 5", "label": "Stôl 5", "x": 10.0, "y": 7.8},
+        {"prefix": "Stôl 4", "label": "Stôl 4", "x": 15.5, "y": 7.8}
+    ]
 
-    for t_id, (x, y, t_label) in coords.items():
-        ax.add_patch(plt.Circle((x, y), 1.1, color='#f7f7f7', ec='#aaaaaa', lw=2))
-        ax.text(x, y, t_label, ha='center', va='center', fontweight='bold')
+    for c in coords:
+        ax.add_patch(plt.Circle((c["x"], c["y"]), 1.1, color='#f7f7f7', ec='#aaaaaa', lw=2))
+        ax.text(c["x"], c["y"], c["label"], ha='center', va='center', fontweight='bold')
         angles = np.linspace(0, 2*np.pi, 10, endpoint=False) + np.pi/2
         for s_idx, angle in enumerate(angles):
-            person = st.session_state.seating.get(f"v3_{t_id}_S{s_idx+1}", "-- Voľné --")
+            person = st.session_state.seating.get(f"{c['prefix']} M.{s_idx+1}", "-- Voľné --")
             if person != "-- Voľné --":
-                ax.text(x + 1.55 * np.cos(angle), y + 1.45 * np.sin(angle), person, fontsize=7.5, ha='center', va='center',
+                ax.text(c["x"] + 1.55 * np.cos(angle), c["y"] + 1.45 * np.sin(angle), person, fontsize=7.5, ha='center', va='center',
                         bbox=dict(boxstyle='round,pad=0.2', facecolor=get_color(person), edgecolor='#cccccc'))
     st.pyplot(fig)
 
-# --- KARTA 2: SPRÁVA HOSTÍ ---
+# ==========================================
+# KARTA 2: SPRÁVA HOSTÍ
+# ==========================================
 with tab2:
     st.subheader("➕ Pridať nového hosťa")
     c1, c2, c3 = st.columns([2, 2, 1])
