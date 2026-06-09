@@ -115,50 +115,40 @@ with tab1:
 
     st.subheader("🪑 Priraďovanie hostí k stolom")
     
-    # OPRAVENÁ FUNKCIA: Používa vnútorne bezpečné ID stolov bez diakritiky a medzier
-    def render_table_selectors(t_label, t_id, seats_count, columns):
-        with columns:
-            st.markdown(f"#### {t_label}")
-            for seat in range(1, seats_count + 1):
-                key = f"wkey_{t_id}_Miesto_{seat}" # Absolútne unikátny kľúč
-                current_val = st.session_state.seating.get(f"{t_id}_Miesto_{seat}", "-- Voľné --")
-                
-                valid_options = [current_val] if current_val != "-- Voľné --" else []
-                valid_options += [g for g in all_guests if g not in used_guests]
-                if "-- Voľné --" not in valid_options:
-                    valid_options.append("-- Voľné --")
-                
-                valid_options = list(dict.fromkeys(valid_options))
-                
-                try:
-                    idx = valid_options.index(current_val)
-                except ValueError:
-                    idx = 0
-                
-                selected = st.selectbox(f"{t_label} M.{seat}", valid_options, index=idx, key=key)
-                if selected != current_val:
-                    st.session_state.seating[f"{t_id}_Miesto_{seat}"] = selected
-                    st.rerun()
+    # KĽÚČOVÁ OPRAVA: Funkcia dostáva seat_number, takže kľúč widgetu 'key' bude vždy unikátny
+    def render_single_seat_selector(t_label, t_id, seat_number, column_ctx):
+        with column_ctx:
+            key = f"wkey_{t_id}_Miesto_{seat_number}" # 100% unikátny kľúč pre Streamlit
+            db_key = f"{t_id}_Miesto_{seat_number}"
+            current_val = st.session_state.seating.get(db_key, "-- Voľné --")
+            
+            valid_options = [current_val] if current_val != "-- Voľné --" else []
+            valid_options += [g for g in all_guests if g not in used_guests]
+            if "-- Voľné --" not in valid_options:
+                valid_options.append("-- Voľné --")
+            
+            valid_options = list(dict.fromkeys(valid_options))
+            
+            try:
+                idx = valid_options.index(current_val)
+            except ValueError:
+                idx = 0
+            
+            selected = st.selectbox(f"{t_label} M.{seat_number}", valid_options, index=idx, key=key)
+            if selected != current_val:
+                st.session_state.seating[db_key] = selected
+                st.rerun()
 
-    # 1. Hlavný stôl
+    # 1. Hlavný stôl (Rozložený do 6 stĺpcov)
     st.markdown("### 👑 Hlavná zóna")
     h_cols = st.columns(6)
     for seat in range(1, 7):
-        # Aby nevznikal konflikt, vykreslíme každé jedno miesto do samostatného stĺpca
-        render_table_selectors(f"Hlavný stôl", "Hlavny_Stol", 1, h_cols[seat-1])
-        # Malý trik: premenovali sme interné ukladanie na Hlavny_Stol a seats_count na 1 pre precízny rendering po stĺpcoch
+        render_single_seat_selector("Hlavný stôl", "Hlavny_Stol", seat, h_cols[seat-1])
 
-    # Kvôli spätnej kompatibilite zjednotíme štruktúru Hlavného stola (oprava indexov po prechode na single rendering)
-    # Ak v session state vznikli dáta z jedno-miestneho renderingu typu "Hlavny_Stol_Miesto_1_Miesto_1", prepíšeme ich správne:
-    for seat in range(1, 7):
-        wrong_key = f"Hlavny_Stol_Miesto_1_Miesto_1" # Streamlit by to mohol skombinovať
-        # Naša funkcia zapíše pod t_id + _Miesto_1, pričom t_id voláme pre každé sedadlo s jeho číslom:
-        
     st.markdown("---")
     st.markdown("### 🧮 Okrúhle stoly")
     cols = st.columns(3)
     
-    # Definícia štítkov a interných ID (id nesmie mať diakritiku ani medzery, aby nekolidovalo)
     round_tables = [
         {"label": "Stôl 3", "id": "Stol_3"},
         {"label": "Stôl 2", "id": "Stol_2"},
@@ -169,7 +159,10 @@ with tab1:
     ]
     
     for idx, t in enumerate(round_tables):
-        render_table_selectors(t["label"], t["id"], 10, cols[idx % 3])
+        with cols[idx % 3]:
+            st.markdown(f"#### {t['label']}")
+            for seat in range(1, 11):
+                render_single_seat_selector(t["label"], t["id"], seat, st)
 
     # Vizualizácia (Mapa)
     st.markdown("---")
