@@ -115,35 +115,39 @@ with tab1:
 
     st.subheader("🪑 Priraďovanie hostí k stolom")
     
-    # KĽÚČOVÁ OPRAVA: Funkcia dostáva seat_number, takže kľúč widgetu 'key' bude vždy unikátny
-    def render_single_seat_selector(t_label, t_id, seat_number, column_ctx):
-        with column_ctx:
-            key = f"wkey_{t_id}_Miesto_{seat_number}" # 100% unikátny kľúč pre Streamlit
-            db_key = f"{t_id}_Miesto_{seat_number}"
-            current_val = st.session_state.seating.get(db_key, "-- Voľné --")
+    # OPRAVENÁ FUNKCIA: Target určuje, kam sa má vykresliť (stĺpec alebo samotný st). Ak target nie je definovaný, kreslí priamo.
+    def render_single_seat_selector(t_label, t_id, seat_number, target=None):
+        key = f"wkey_{t_id}_Miesto_{seat_number}"
+        db_key = f"{t_id}_Miesto_{seat_number}"
+        current_val = st.session_state.seating.get(db_key, "-- Voľné --")
+        
+        valid_options = [current_val] if current_val != "-- Voľné --" else []
+        valid_options += [g for g in all_guests if g not in used_guests]
+        if "-- Voľné --" not in valid_options:
+            valid_options.append("-- Voľné --")
+        
+        valid_options = list(dict.fromkeys(valid_options))
+        
+        try:
+            idx = valid_options.index(current_val)
+        except ValueError:
+            idx = 0
             
-            valid_options = [current_val] if current_val != "-- Voľné --" else []
-            valid_options += [g for g in all_guests if g not in used_guests]
-            if "-- Voľné --" not in valid_options:
-                valid_options.append("-- Voľné --")
-            
-            valid_options = list(dict.fromkeys(valid_options))
-            
-            try:
-                idx = valid_options.index(current_val)
-            except ValueError:
-                idx = 0
-            
+        # Vykreslenie do správneho kontajnera
+        if target is not None:
+            selected = target.selectbox(f"{t_label} M.{seat_number}", valid_options, index=idx, key=key)
+        else:
             selected = st.selectbox(f"{t_label} M.{seat_number}", valid_options, index=idx, key=key)
-            if selected != current_val:
-                st.session_state.seating[db_key] = selected
-                st.rerun()
+            
+        if selected != current_val:
+            st.session_state.seating[db_key] = selected
+            st.rerun()
 
-    # 1. Hlavný stôl (Rozložený do 6 stĺpcov)
+    # 1. Hlavný stôl (Vykreslenie do 6 stĺpcov vedľa seba)
     st.markdown("### 👑 Hlavná zóna")
     h_cols = st.columns(6)
     for seat in range(1, 7):
-        render_single_seat_selector("Hlavný stôl", "Hlavny_Stol", seat, h_cols[seat-1])
+        render_single_seat_selector("Hlavný stôl", "Hlavny_Stol", seat, target=h_cols[seat-1])
 
     st.markdown("---")
     st.markdown("### 🧮 Okrúhle stoly")
@@ -162,70 +166,5 @@ with tab1:
         with cols[idx % 3]:
             st.markdown(f"#### {t['label']}")
             for seat in range(1, 11):
-                render_single_seat_selector(t["label"], t["id"], seat, st)
-
-    # Vizualizácia (Mapa)
-    st.markdown("---")
-    st.subheader("🗺️ Živá Vizuálna Mapa Sály")
-    fig, ax = plt.subplots(figsize=(15, 8))
-    ax.set_xlim(0, 20); ax.set_ylim(0, 10); ax.axis('off')
-
-    def get_color(name):
-        if name == "-- Voľné --": return '#ffffff'
-        skupina = guest_dict.get(name, "")
-        if skupina == "Mladomanzelia": return '#ffe599'
-        if skupina == "Moja strana": return '#c9daf8'
-        if skupina == "Kika strana": return '#f4cccc'
-        return '#d9ead3'
-
-    ax.add_patch(plt.Rectangle((5, 0.4), 10, 1.0, color='#e0e0e0', ec='#666666', lw=2))
-    ax.text(10, 0.9, "👑 HLAVNÝ STÔL", ha='center', fontweight='bold', fontsize=11)
-    
-    for s_idx in range(6):
-        p_name = st.session_state.seating.get(f"Hlavny_Stol_Miesto_{s_idx+1}", "-- Voľné --")
-        ax.text(5.8 + s_idx * 1.6, 0.6, p_name, fontsize=8, ha='center', va='center',
-                bbox=dict(boxstyle='square,pad=0.2', facecolor=get_color(p_name), edgecolor='#999999'))
-
-    coords = {
-        "Stol_3": (4.5, 4.2, "Stôl 3"), "Stol_2": (10.0, 4.2, "Stôl 2"), "Stol_1": (15.5, 4.2, "Stôl 1"),
-        "Stol_6": (4.5, 7.8, "Stôl 6"), "Stol_5": (10.0, 7.8, "Stôl 5"), "Stol_4": (15.5, 7.8, "Stôl 4")
-    }
-
-    for t_id, (x, y, t_label) in coords.items():
-        ax.add_patch(plt.Circle((x, y), 1.1, color='#f7f7f7', ec='#aaaaaa', lw=2))
-        ax.text(x, y, t_label, ha='center', va='center', fontweight='bold')
-        angles = np.linspace(0, 2*np.pi, 10, endpoint=False) + np.pi/2
-        for s_idx, angle in enumerate(angles):
-            person = st.session_state.seating.get(f"{t_id}_Miesto_{s_idx+1}", "-- Voľné --")
-            if person != "-- Voľné --":
-                ax.text(x + 1.55 * np.cos(angle), y + 1.45 * np.sin(angle), person, fontsize=7.5, ha='center', va='center',
-                        bbox=dict(boxstyle='round,pad=0.2', facecolor=get_color(person), edgecolor='#cccccc'))
-    st.pyplot(fig)
-
-# ==========================================
-# KARTA 2: SPRÁVA HOSTÍ
-# ==========================================
-with tab2:
-    st.subheader("➕ Pridať nového hosťa")
-    c1, c2, c3 = st.columns([2, 2, 1])
-    n_meno = c1.text_input("Meno:", key="input_novy_host_meno")
-    n_skupina = c2.selectbox("Skupina:", ["Moja strana", "Kika strana", "Kamosi"], key="input_novy_host_skupina")
-    if c3.button("➕ Pridať", key="btn_pridat_hosta"):
-        if n_meno and n_meno not in guest_dict:
-            guest_dict[n_meno] = n_skupina
-            uloz_hosti(guest_dict)
-            st.success(f"Pridaný: {n_meno}")
-            st.rerun()
-    
-    st.markdown("---")
-    st.subheader("🗑️ Zoznam a mazanie")
-    for kat in ["Moja strana", "Kika strana", "Kamosi"]:
-        st.write(f"**{kat}**")
-        ludia = [m for m, s in guest_dict.items() if s == kat]
-        for m in sorted(ludia):
-            col_m, col_b = st.columns([4, 1])
-            col_m.write(m)
-            if col_b.button("🗑️", key=f"del_g_{m}"):
-                del guest_dict[m]
-                uloz_hosti(guest_dict)
-                st.rerun()
+                # Target definujeme ako konkrétny stĺpec z poľa 'cols'
+                render_single_seat_selector(t["label"], t["id"], seat, target=cols[idx % 3])
