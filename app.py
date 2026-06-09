@@ -63,12 +63,12 @@ def uloz_verziu(nazov, data):
 
 def get_default_seating():
     default = {}
-    default["Hlavný Stôl M.1"] = "Janko (Dominik)" if "Janko (Dominik)" in guest_dict else "-- Voľné --"
-    default["Hlavný Stôl M.2"] = "Mamka (Dominik)" if "Mamka (Dominik)" in guest_dict else "-- Voľné --"
-    default["Hlavný Stôl M.3"] = "Dominik (Ženích)" if "Dominik (Ženích)" in guest_dict else "-- Voľné --"
-    default["Hlavný Stôl M.4"] = "Kika (Nevesta)" if "Kika (Nevesta)" in guest_dict else "-- Voľné --"
-    default["Hlavný Stôl M.5"] = "Mamka (Kika)" if "Mamka (Kika)" in guest_dict else "-- Voľné --"
-    default["Hlavný Stôl M.6"] = "Palo (Kika)" if "Palo (Kika)" in guest_dict else "-- Voľné --"
+    default["Hlavný stôl M.1"] = "Adrianka (Dominik)" if "Adrianka (Dominik)" in guest_dict else "-- Voľné --"
+    default["Hlavný stôl M.2"] = "Mamka (Dominik)" if "Mamka (Dominik)" in guest_dict else "-- Voľné --"
+    default["Hlavný stôl M.3"] = "Dominik (Ženích)" if "Dominik (Ženích)" in guest_dict else "-- Voľné --"
+    default["Hlavný stôl M.4"] = "Kika (Nevesta)" if "Kika (Nevesta)" in guest_dict else "-- Voľné --"
+    default["Hlavný stôl M.5"] = "Mamka (Kika)" if "Mamka (Kika)" in guest_dict else "-- Voľné --"
+    default["Hlavný stôl M.6"] = "Palo (Kika)" if "Palo (Kika)" in guest_dict else "-- Voľné --"
     return default
 
 if 'seating' not in st.session_state:
@@ -115,9 +115,9 @@ with tab1:
 
     st.subheader("🪑 Priraďovanie hostí k stolom")
     
-    # Pôvodná funkcia, ktorá berie presné staré názvy stolov s diakritikou
+    # Opravené generovanie kľúčov presne podľa tvojho screenshotu z PC
     def render_single_seat_selector(t_label, prefix_db, seat_number, target):
-        key = f"widget_{prefix_db}_{seat_number}"
+        key = f"widget_{prefix_db.replace(' ', '_')}_{seat_number}"
         db_key = f"{prefix_db} M.{seat_number}"
         current_val = st.session_state.seating.get(db_key, "-- Voľné --")
         
@@ -139,11 +139,11 @@ with tab1:
             st.session_state.seating[db_key] = selected
             st.rerun()
 
-    # 1. Hlavný stôl (Vykreslenie do 6 stĺpcov vedľa seba)
+    # 1. Hlavný stôl (Zjednotené na malé "s" -> "Hlavný stôl")
     st.markdown("### 👑 Hlavná zóna")
     h_cols = st.columns(6)
     for seat in range(1, 7):
-        render_single_seat_selector("Hlavný stôl", "Hlavný Stôl", seat, target=h_cols[seat-1])
+        render_single_seat_selector("Hlavný stôl", "Hlavný stôl", seat, target=h_cols[seat-1])
 
     st.markdown("---")
     st.markdown("### 🧮 Okrúhle stoly")
@@ -183,7 +183,7 @@ with tab1:
     ax.text(10, 0.9, "👑 HLAVNÝ STÔL", ha='center', fontweight='bold', fontsize=11)
     
     for s_idx in range(6):
-        p_name = st.session_state.seating.get(f"Hlavný Stôl M.{s_idx+1}", "-- Voľné --")
+        p_name = st.session_state.seating.get(f"Hlavný stôl M.{s_idx+1}", "-- Voľné --")
         ax.text(5.8 + s_idx * 1.6, 0.6, p_name, fontsize=8, ha='center', va='center',
                 bbox=dict(boxstyle='square,pad=0.2', facecolor=get_color(p_name), edgecolor='#999999'))
 
@@ -207,9 +207,7 @@ with tab1:
                         bbox=dict(boxstyle='round,pad=0.2', facecolor=get_color(person), edgecolor='#cccccc'))
     st.pyplot(fig)
 
-# ==========================================
-# KARTA 2: SPRÁVA HOSTÍ
-# ==========================================
+# --- KARTA 2: SPRÁVA HOSTÍ ---
 with tab2:
     st.subheader("➕ Pridať nového hosťa")
     c1, c2, c3 = st.columns([2, 2, 1])
